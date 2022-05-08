@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from queue import Queue
 from threading import Thread
+import time
 
 
 def capture(img_que):
@@ -10,11 +11,11 @@ def capture(img_que):
         ret, img = cap.read()
         if(ret):
             img_que.put(img)
-        else:
-            print('capture failed')
-
 
 def inference(img_que):
+
+    Width = 1280 
+    Height = 720
 
     net = cv2.dnn.readNet("data/yolov3-tiny.weights", "data/yolov3-tiny.cfg")
     layer_names = net.getLayerNames()
@@ -23,8 +24,16 @@ def inference(img_que):
     scale = 0.00392
     conf_threshold = 0.5
     nms_threshold = 0.4
+    frame_counter = 0
+    start_time = time.time()
 
     while(1):
+        frame_counter += 1
+        if(frame_counter > 27):
+            print("EOF")
+            import os
+            os._exit(1)
+
         class_ids = []
         confidences = []
         boxes = []
@@ -54,18 +63,10 @@ def inference(img_que):
 
         indices = cv2.dnn.NMSBoxes(
             boxes, confidences, conf_threshold, nms_threshold)
-        print(boxes, confidences, indices)
-
-        cv2.waitKey(1)
+        print(frame_counter * 1.0 / (time.time() - start_time))
 
 
 if __name__ == "__main__":
-    cap = cv2.VideoCapture("data/test.mp4")
-    ret,img = cap.read()
-    Height = img.shape[0]
-    Width = img.shape[1]
-
-
     img_que = Queue(maxsize=1)
     Thread(target=capture, args=(img_que,)).start()
     Thread(target=inference, args=(img_que,)).start()
