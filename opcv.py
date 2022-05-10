@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from queue import Queue
-from threading import Thread
+from threading import Thread, Lock
 import time
 
 
@@ -17,19 +17,24 @@ def inference(img_que):
     Width = 1280 
     Height = 720
 
+    #net = cv2.dnn.readNet("data/yolov3.weights", "data/yolov3.cfg")
     net = cv2.dnn.readNet("data/yolov3-tiny.weights", "data/yolov3-tiny.cfg")
+
     layer_names = net.getLayerNames()
     output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
 
     scale = 0.00392
-    conf_threshold = 0.5
+    conf_threshold = 0.1
     nms_threshold = 0.4
     frame_counter = 0
     start_time = time.time()
+    fps = 0.0
 
     while(1):
         frame_counter += 1
         if(frame_counter > 27):
+            print("")
+            print("%.3f"%fps, "fps")
             print("EOF")
             import os
             os._exit(1)
@@ -46,7 +51,9 @@ def inference(img_que):
         outs = net.forward(output_layers)
 
         for out in outs:
+            # out(507, 85), (2028, 85)
             for detection in out:
+                # detection(85,)
                 scores = detection[5:]
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
@@ -60,10 +67,13 @@ def inference(img_que):
                     class_ids.append(class_id)
                     confidences.append(float(confidence))
                     boxes.append([x, y, w, h])
+                    print(class_ids, confidence,)
 
         indices = cv2.dnn.NMSBoxes(
             boxes, confidences, conf_threshold, nms_threshold)
-        print(frame_counter * 1.0 / (time.time() - start_time))
+        fps = frame_counter * 1.0 / (time.time() - start_time)
+
+        print(".", end="", flush=True)
 
 
 if __name__ == "__main__":
