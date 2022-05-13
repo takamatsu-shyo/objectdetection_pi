@@ -5,14 +5,29 @@ from threading import Thread, Lock
 import time
 
 
-def capture(img_que):
+def capture_to_buffer():
     cap = cv2.VideoCapture("data/test.mp4")
-    while(1):
-        ret, img = cap.read()
-        if(ret):
-            img_que.put(img)
+    frame_buffer = []
+    
+    try:
+        #while(1):
+        for i in range(30):
+            print(".", end="", flush=True)
+            ret, img = cap.read()
+            if(ret):
+                frame_buffer.append(img)
+            else:
+                break
+    except Exception as e:
+        print(e)
 
-def inference(img_que):
+    return frame_buffer
+
+
+def main():
+
+    frame_buffer = capture_to_buffer()
+    print("frame buffer complete")
 
     Width = 1280 
     Height = 720
@@ -21,7 +36,8 @@ def inference(img_que):
     net = cv2.dnn.readNet("data/yolov3-tiny.weights", "data/yolov3-tiny.cfg")
 
     layer_names = net.getLayerNames()
-    output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
+    #output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
+    output_layers = net.getUnconnectedOutLayersNames()
 
     scale = 0.00392
     conf_threshold = 0.1
@@ -30,23 +46,14 @@ def inference(img_que):
     start_time = time.time()
     fps = 0.0
 
-    while(1):
+    for img in frame_buffer:
         frame_counter += 1
-        if(frame_counter > 27):
-            print("")
-            print("%.3f"%fps, "fps")
-            print("EOF")
-            import os
-            os._exit(1)
 
         class_ids = []
         confidences = []
         boxes = []
 
-        img = img_que.get()
-
-        blob = cv2.dnn.blobFromImage(
-            img, scale, (416, 416), (0, 0, 0), True, crop=False)
+        blob = cv2.dnn.blobFromImage(img, scale, (416, 416), (0, 0, 0), True, crop=False)
         net.setInput(blob)
         outs = net.forward(output_layers)
 
@@ -69,14 +76,13 @@ def inference(img_que):
                     boxes.append([x, y, w, h])
                     print(class_ids, confidence,)
 
-        indices = cv2.dnn.NMSBoxes(
-            boxes, confidences, conf_threshold, nms_threshold)
+        indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
         fps = frame_counter * 1.0 / (time.time() - start_time)
 
         print(".", end="", flush=True)
 
+    print(fps, " fps")
+
 
 if __name__ == "__main__":
-    img_que = Queue(maxsize=1)
-    Thread(target=capture, args=(img_que,)).start()
-    Thread(target=inference, args=(img_que,)).start()
+    main()
